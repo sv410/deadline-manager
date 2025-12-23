@@ -26,6 +26,8 @@ interface Deadline {
   createdAt: string
   // Indicates if a specific time was set by the user
   hasTime?: boolean
+  // Track completion time for analysis
+  completedAt?: string
 }
 
 export default function DashboardPage() {
@@ -67,6 +69,13 @@ export default function DashboardPage() {
     return dd > now && dd <= in7Days && d.status !== 'completed'
   }).length
   const pastEventsCount = deadlines.filter((d) => new Date(d.dueDate) < now).length
+
+  // Past deadline analysis
+  const pastDeadlines = deadlines.filter((d) => new Date(d.dueDate) < now)
+  const completedOnTime = pastDeadlines.filter((d) => d.status === 'completed' && new Date(d.completedAt || 0) <= new Date(d.dueDate)).length
+  const completedLate = pastDeadlines.filter((d) => d.status === 'completed' && new Date(d.completedAt || 0) > new Date(d.dueDate)).length
+  const failedCount = pastDeadlines.filter((d) => d.status !== 'completed').length
+  const successRate = pastEventsCount > 0 ? Math.round((completedOnTime / pastEventsCount) * 100) : 0
 
   const priorityColors = {
     low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -112,7 +121,7 @@ export default function DashboardPage() {
   const handleCompleteDeadline = (id: string) => {
     setDeadlines(
       deadlines.map((d) =>
-        d.id === id ? { ...d, status: 'completed' } : d
+        d.id === id ? { ...d, status: 'completed', completedAt: new Date().toISOString() } : d
       )
     )
   }
@@ -426,6 +435,85 @@ export default function DashboardPage() {
               <div className="bg-zinc-900/80 border border-orange-500/20 rounded-2xl p-6 backdrop-blur-xl">
                 <div className="text-sm text-gray-400 mb-2">Past Events</div>
                 <div className="text-3xl font-bold text-gray-300">{pastEventsCount}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Past Deadline Analysis */}
+          {pastEventsCount > 0 && (
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Past Deadline Analysis</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-zinc-900/80 border border-green-500/20 rounded-2xl p-6 backdrop-blur-xl">
+                  <div className="text-sm text-gray-400 mb-2">On-Time Completion</div>
+                  <div className="text-3xl font-bold text-green-400">{completedOnTime}</div>
+                  <div className="text-xs text-gray-500 mt-2">Completed before deadline</div>
+                </div>
+                <div className="bg-zinc-900/80 border border-orange-500/20 rounded-2xl p-6 backdrop-blur-xl">
+                  <div className="text-sm text-gray-400 mb-2">Late Completion</div>
+                  <div className="text-3xl font-bold text-orange-400">{completedLate}</div>
+                  <div className="text-xs text-gray-500 mt-2">Completed after deadline</div>
+                </div>
+                <div className="bg-zinc-900/80 border border-red-500/20 rounded-2xl p-6 backdrop-blur-xl">
+                  <div className="text-sm text-gray-400 mb-2">Failed/Missed</div>
+                  <div className="text-3xl font-bold text-red-400">{failedCount}</div>
+                  <div className="text-xs text-gray-500 mt-2">Not completed</div>
+                </div>
+                <div className="bg-zinc-900/80 border border-cyan-500/20 rounded-2xl p-6 backdrop-blur-xl">
+                  <div className="text-sm text-gray-400 mb-2">Success Rate</div>
+                  <div className="text-3xl font-bold text-cyan-400">{successRate}%</div>
+                  <div className="text-xs text-gray-500 mt-2">On-time completion rate</div>
+                </div>
+              </div>
+
+              {/* Past Deadlines List */}
+              <div className="bg-zinc-900/80 border border-orange-500/20 rounded-2xl p-6 backdrop-blur-xl">
+                <h3 className="text-lg font-semibold text-white mb-4">Past Deadlines Status</h3>
+                <div className="space-y-3">
+                  {pastDeadlines.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No past deadlines</p>
+                  ) : (
+                    pastDeadlines.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()).map((deadline) => {
+                      const isDueDate = new Date(deadline.dueDate)
+                      const isCompleted = deadline.status === 'completed'
+                      const isOnTime = isCompleted && new Date(deadline.completedAt || 0) <= isDueDate
+                      const isLate = isCompleted && new Date(deadline.completedAt || 0) > isDueDate
+                      const isFailed = !isCompleted
+
+                      let statusBg = ''
+                      let statusIcon = ''
+                      let statusText = ''
+
+                      if (isOnTime) {
+                        statusBg = 'bg-green-500/20 border-green-500/30'
+                        statusIcon = '✓'
+                        statusText = 'On Time'
+                      } else if (isLate) {
+                        statusBg = 'bg-orange-500/20 border-orange-500/30'
+                        statusIcon = '⚠'
+                        statusText = 'Late'
+                      } else if (isFailed) {
+                        statusBg = 'bg-red-500/20 border-red-500/30'
+                        statusIcon = '✕'
+                        statusText = 'Failed'
+                      }
+
+                      return (
+                        <div key={deadline.id} className={`border rounded-lg p-4 flex justify-between items-center ${statusBg}`}>
+                          <div>
+                            <p className="text-white font-medium">{deadline.title}</p>
+                            <p className="text-gray-400 text-sm">Due: {formatDateDMY(deadline.dueDate)} at {deadline.hasTime ? formatTimeHM(deadline.dueDate) : '--:--'}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold text-white bg-black/30">
+                              {statusIcon} {statusText}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </div>
             </div>
           )}
